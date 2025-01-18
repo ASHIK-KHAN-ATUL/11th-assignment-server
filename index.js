@@ -1,16 +1,36 @@
-const express = require('express')
-const cors = require('cors')
+const express = require('express');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser')
 const app = express();
 require('dotenv').config();
 const port = process.env.PORT || 3000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173'],
+  credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
 
-// DB_USER = LibroHub
-// DB_PASS = 3KZMi8YdODltk1rL
+const verifyToken = (req, res, next) => {
+  const token = req.cookies.token;
+  // console.log('Token inside the verifyToken', token)
+  if(!token){
+    return res.status(401).send({message: 'Unauthorized access'})
+  }
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded)=> {
+    if(err){
+      return res.status(401).send({message: "Unauthorized access"})
+    }
+    req.user = decoded;
+    next();
+  })
+  
+}
 
 
 
@@ -37,15 +57,41 @@ async function run() {
     const bookCollection = client.db('LibroHub').collection('books')
     const borrowCollection = client.db('LibroHub').collection('borrowedBooks')
 
-    app.get('/books', async(req, res)=> {
 
+    // auth related apis
+    app.post('/jwt', async(req, res)=>{
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn:'5h'});
+        res.cookie('token', token, {
+          httpOnly: true,
+          secure: false
+        })
+        .send({success: true})
+    })
+
+    app.post('/logout', async(req, res)=> {
+      res.clearCookie('token', {
+        httpOnly: true,
+        secure: false
+      })
+      .send({success: true})
+    })
+
+
+    app.get('/books',  async(req, res)=> {
       const category = req.query.category;
       let query = {};
       if(category){
         query = { category : category}
       }
-
       const cursor = bookCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    })
+
+    app.get('/books/latest', async(req, res)=> {
+      const cursor = bookCollection.find().sort({quantity: -1} ).limit(7);;
       const result = await cursor.toArray();
       res.send(result);
     })
@@ -96,7 +142,6 @@ async function run() {
       res.send(result)
     })
 
-
     app.post('/borrow/:id', async(req, res)=> {
 
       const id = req.params.id;
@@ -117,13 +162,19 @@ async function run() {
           res.send(result)
     })
 
-    app.get('/bookBorrowed', async(req, res)=>{
+    app.get('/bookBorrowed', verifyToken, async(req, res)=>{
 
       const email = req.query.email;
       let query = {};
       if(email){
         query = {userEmail : email }
       }
+
+      console.log(req.cookies.token)
+      if(req.user.email !== req.query.email ){
+        return res.status(403).send({message: "Forbidden Access"})
+      }
+
       const cursor = borrowCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
