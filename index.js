@@ -9,7 +9,10 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 
 app.use(cors({
-  origin: ['http://localhost:5173'],
+  origin: [
+    'http://localhost:5173',
+    'https://ashik-khan-atul-assignment-11th.surge.sh'
+    ],
   credentials: true
 }));
 app.use(express.json());
@@ -24,7 +27,7 @@ const verifyToken = (req, res, next) => {
 
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded)=> {
     if(err){
-      return res.status(401).send({message: "Unauthorized access"})
+      return res.status(401).send({message: "Unauthorized Access"})
     }
     req.user = decoded;
     next();
@@ -48,9 +51,9 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
     // books related apis
@@ -62,10 +65,11 @@ async function run() {
     app.post('/jwt', async(req, res)=>{
       const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn:'24h'});
+        expiresIn:'20h'});
         res.cookie('token', token, {
           httpOnly: true,
-          secure: false
+          secure: process.env.NODE_ENV=== 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
         })
         .send({success: true})
     })
@@ -73,7 +77,8 @@ async function run() {
     app.post('/logout', async(req, res)=> {
       res.clearCookie('token', {
         httpOnly: true,
-        secure: false
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
       })
       .send({success: true})
     })
@@ -163,7 +168,7 @@ async function run() {
           res.send(result)
     })
 
-    app.get('/bookBorrowed', verifyToken, async(req, res)=>{
+    app.get('/bookBorrowed', verifyToken,  async(req, res)=>{
 
       const email = req.query.email;
       let query = {};
@@ -172,6 +177,7 @@ async function run() {
       }
 
       console.log(req.cookies.token)
+
       if(req.user.email !== req.query.email ){
         return res.status(403).send({message: "Forbidden Access"})
       }
