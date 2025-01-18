@@ -62,7 +62,7 @@ async function run() {
     app.post('/jwt', async(req, res)=>{
       const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn:'5h'});
+        expiresIn:'24h'});
         res.cookie('token', token, {
           httpOnly: true,
           secure: false
@@ -107,6 +107,7 @@ async function run() {
       const result = await bookCollection.findOne({_id: new ObjectId(id)});
       res.send(result)
     })
+
 
     app.patch('/books/:id', async(req, res)=>{
       const id =req.params.id;
